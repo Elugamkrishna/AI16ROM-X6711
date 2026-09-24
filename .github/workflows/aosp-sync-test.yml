@@ -1,0 +1,67 @@
+name: AI16ROM AOSP Sync Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  aosp-sync:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+
+    steps:
+      - name: Check runner
+        run: |
+          echo "=== RUNNER ==="
+          uname -m
+          nproc
+          free -h
+          df -h /
+
+      - name: Install repo dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-core gnupg flex bison build-essential \
+            zip curl zstd python3 rsync bc ccache
+
+      - name: Install repo tool
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -L https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize Android 16
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/aosp"
+          cd "$GITHUB_WORKSPACE/aosp"
+
+          repo init \
+            -u https://android.googlesource.com/platform/manifest \
+            -b android16-release \
+            --depth=1 \
+            --partial-clone \
+            --clone-filter=blob:limit=10M
+
+      - name: Sync Android 16
+        run: |
+          cd "$GITHUB_WORKSPACE/aosp"
+
+          repo sync \
+            -c \
+            -j4 \
+            --no-tags \
+            --optimized-fetch \
+            --prune
+
+      - name: Report source size
+        if: always()
+        run: |
+          echo "=== AOSP SIZE ==="
+          du -sh "$GITHUB_WORKSPACE/aosp" 2>/dev/null || true
+
+          echo "=== DISK ==="
+          df -h /
+
+          echo "=== MEMORY ==="
+          free -h
