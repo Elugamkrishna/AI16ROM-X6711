@@ -1,0 +1,81 @@
+name: AI16ROM Minimal AOSP Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+
+    steps:
+      - name: Runner info
+        run: |
+          echo "=== CPU ==="
+          uname -m
+          nproc
+
+          echo "=== RAM ==="
+          free -h
+
+          echo "=== DISK ==="
+          df -h /
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git-core gnupg flex bison build-essential \
+            zip curl zstd python3 rsync bc ccache
+
+      - name: Install repo
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -L \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$HOME/bin/repo"
+          chmod +x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize AOSP
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/aosp"
+          cd "$GITHUB_WORKSPACE/aosp"
+
+          repo init \
+            -u https://android.googlesource.com/platform/manifest \
+            -b android16-release \
+            --depth=1 \
+            --partial-clone \
+            --clone-filter=blob:limit=1M
+
+      - name: Sync with reduced concurrency
+        run: |
+          cd "$GITHUB_WORKSPACE/aosp"
+
+          repo sync \
+            -c \
+            -j2 \
+            --no-tags \
+            --optimized-fetch \
+            --prune
+
+      - name: Measure source
+        if: always()
+        run: |
+          cd "$GITHUB_WORKSPACE/aosp"
+
+          echo "=== AOSP SIZE ==="
+          du -sh .
+
+          echo "=== .repo SIZE ==="
+          du -sh .repo 2>/dev/null || true
+
+          echo "=== TOP LEVEL ==="
+          du -sh -- */ 2>/dev/null | sort -h | tail -30
+
+          echo "=== DISK ==="
+          df -h /
+
+          echo "=== RAM ==="
+          free -h
